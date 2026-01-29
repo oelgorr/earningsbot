@@ -57,6 +57,7 @@ def create_earnings_embed(
     eps_previous: Optional[float],
     guidance: Optional[str] = None,
     takeaways: Optional[list] = None,
+    is_ath: bool = False,
 ) -> dict:
     """
     Create a Discord embed for an earnings report.
@@ -130,9 +131,19 @@ def create_earnings_embed(
             "inline": False
         })
 
+    # Build title with optional ATH badge
+    title = f"📈 {ticker} {fiscal_period} Earnings"
+    if is_ath:
+        title += " 🏆 ATH!"
+
+    # Build description with company name and optional ATH note
+    description = f"**{company_name}**"
+    if is_ath:
+        description += "\n🚀 *Stock reached all-time high!*"
+
     embed = {
-        "title": f"📈 {ticker} {fiscal_period} Earnings",
-        "description": f"**{company_name}**",
+        "title": title,
+        "description": description,
         "color": color,
         "fields": fields,
         "footer": {

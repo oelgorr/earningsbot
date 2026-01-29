@@ -220,6 +220,49 @@ Format exactly like:
         return None
 
 
+def check_all_time_high(ticker: str, date: str) -> bool:
+    """
+    Check if stock hit an all-time high on the given date using Perplexity.
+    """
+    if not PERPLEXITY_API_KEY:
+        return False
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "sonar",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""Did {ticker} stock reach an all-time high on or around {date}?
+Answer ONLY with YES or NO. Nothing else."""
+                }
+            ],
+            "max_tokens": 10
+        }
+
+        response = requests.post(
+            PERPLEXITY_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        answer = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip().upper()
+
+        return "YES" in answer
+
+    except Exception as e:
+        print(f"  Error checking ATH for {ticker}: {e}")
+        return False
+
+
 def get_previous_year_earnings(ticker: str, current_quarter: str) -> Optional[dict]:
     """Get the same quarter from previous year for YoY comparison."""
     history = fetch_earnings_history(ticker, limit=8)
@@ -337,14 +380,17 @@ def process_earnings(date: str) -> tuple[list, int, int]:
         else:
             fiscal_period = "Latest"
 
-        # Get guidance and takeaways using Perplexity AI
+        # Get guidance, takeaways, and ATH status using Perplexity AI
         guidance = None
         takeaways = None
+        is_ath = False
         if PERPLEXITY_API_KEY and year and quarter:
             print(f"  Fetching guidance for {ticker}...")
             guidance = fetch_earnings_guidance(ticker, year, quarter)
             print(f"  Fetching takeaways for {ticker}...")
             takeaways = fetch_key_takeaways(ticker, year, quarter)
+            print(f"  Checking ATH for {ticker}...")
+            is_ath = check_all_time_high(ticker, announcement_date)
 
         # Count beats/misses
         if eps_actual is not None and eps_estimate is not None:
@@ -365,7 +411,8 @@ def process_earnings(date: str) -> tuple[list, int, int]:
             eps_estimate=eps_estimate,
             eps_previous=eps_previous,
             guidance=guidance,
-            takeaways=takeaways
+            takeaways=takeaways,
+            is_ath=is_ath
         )
         embeds.append(embed)
 
