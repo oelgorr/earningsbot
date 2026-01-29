@@ -56,6 +56,7 @@ def create_earnings_embed(
     eps_estimate: Optional[float],
     eps_previous: Optional[float],
     guidance: Optional[str] = None,
+    takeaways: Optional[list] = None,
 ) -> dict:
     """
     Create a Discord embed for an earnings report.
@@ -117,6 +118,15 @@ def create_earnings_embed(
         fields.append({
             "name": "🔮 Guidance",
             "value": guidance,
+            "inline": False
+        })
+
+    # Key takeaways field (if available)
+    if takeaways and len(takeaways) > 0:
+        takeaways_text = "\n".join([f"• {t}" for t in takeaways])
+        fields.append({
+            "name": "📌 Key Takeaways",
+            "value": takeaways_text,
             "inline": False
         })
 

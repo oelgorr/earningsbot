@@ -13,12 +13,18 @@ Usage:
 
 import os
 import sys
+import re
 import argparse
 from datetime import datetime, timedelta
 from typing import Optional
 import requests
 from dotenv import load_dotenv
 import pytz
+
+
+def strip_citations(text: str) -> str:
+    """Remove citation references like [1], [2][3], etc. from text."""
+    return re.sub(r'\[\d+\]', '', text).strip()
 
 from config import WATCHED_TICKERS, TIMEZONE
 from discord_formatter import (
@@ -142,6 +148,7 @@ If no specific guidance was provided, respond with exactly: NO_GUIDANCE"""
 
         data = response.json()
         guidance = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        guidance = strip_citations(guidance)
 
         # Return default message if no guidance found
         if not guidance or "NO_GUIDANCE" in guidance.upper():
@@ -151,6 +158,65 @@ If no specific guidance was provided, respond with exactly: NO_GUIDANCE"""
 
     except Exception as e:
         print(f"  Error fetching guidance for {ticker}: {e}")
+        return None
+
+
+def fetch_key_takeaways(ticker: str, year: int, quarter: int) -> Optional[list]:
+    """
+    Fetch 3 key takeaways from earnings report using Perplexity AI.
+    """
+    if not PERPLEXITY_API_KEY:
+        return None
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "sonar",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""What are the 3 most important takeaways from {ticker}'s Q{quarter} {year} earnings report?
+
+Focus on: significant business developments, growth metrics, challenges, strategic initiatives, or notable commentary.
+Return ONLY 3 bullet points, each 1 sentence. No preamble, numbering, or explanation.
+Format exactly like:
+• First takeaway
+• Second takeaway
+• Third takeaway"""
+                }
+            ],
+            "max_tokens": 250
+        }
+
+        response = requests.post(
+            PERPLEXITY_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+
+        # Parse bullet points and strip citations
+        takeaways = []
+        for line in content.split("\n"):
+            line = line.strip()
+            if line.startswith("•") or line.startswith("-") or line.startswith("*"):
+                takeaway = line.lstrip("•-* ").strip()
+                takeaway = strip_citations(takeaway)
+                if takeaway:
+                    takeaways.append(takeaway)
+
+        return takeaways[:3] if takeaways else None
+
+    except Exception as e:
+        print(f"  Error fetching takeaways for {ticker}: {e}")
         return None
 
 
@@ -271,11 +337,14 @@ def process_earnings(date: str) -> tuple[list, int, int]:
         else:
             fiscal_period = "Latest"
 
-        # Get guidance using Perplexity AI (searches recent earnings news)
+        # Get guidance and takeaways using Perplexity AI
         guidance = None
+        takeaways = None
         if PERPLEXITY_API_KEY and year and quarter:
             print(f"  Fetching guidance for {ticker}...")
             guidance = fetch_earnings_guidance(ticker, year, quarter)
+            print(f"  Fetching takeaways for {ticker}...")
+            takeaways = fetch_key_takeaways(ticker, year, quarter)
 
         # Count beats/misses
         if eps_actual is not None and eps_estimate is not None:
@@ -295,7 +364,8 @@ def process_earnings(date: str) -> tuple[list, int, int]:
             eps_actual=eps_actual,
             eps_estimate=eps_estimate,
             eps_previous=eps_previous,
-            guidance=guidance
+            guidance=guidance,
+            takeaways=takeaways
         )
         embeds.append(embed)
 
