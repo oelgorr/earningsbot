@@ -1,0 +1,43 @@
+name: Daily Earnings Report
+
+on:
+  # Run every day at 12:00 UTC (7:00 AM Eastern, 4:00 AM Pacific)
+  schedule:
+    - cron: '0 12 * * *'
+
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Specific date to check (YYYY-MM-DD), leave empty for yesterday'
+        required: false
+        default: ''
+
+jobs:
+  post-earnings:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run EarningsBot
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            python earnings_bot.py --date "${{ github.event.inputs.date }}"
+          else
+            python earnings_bot.py
+          fi
