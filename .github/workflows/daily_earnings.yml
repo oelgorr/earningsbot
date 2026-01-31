@@ -41,3 +41,9 @@ jobs:
           else
             python earnings_bot.py
           fi
+
+      - name: Run CongressBot
+        env:
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          CONGRESS_DISCORD_WEBHOOK_URL: ${{ secrets.CONGRESS_DISCORD_WEBHOOK_URL }}
+        run: python congress_bot.py --days 7
