@@ -333,9 +333,13 @@ def create_weekly_preview_embed(upcoming_earnings: list) -> dict:
             "inline": False
         })
 
+    # Pluralize correctly
+    count = len(upcoming_earnings)
+    stock_word = "Stock" if count == 1 else "Stocks"
+
     return {
         "title": "📊 Upcoming Earnings This Week",
-        "description": f"**{len(upcoming_earnings)}** companies from your watchlist report earnings this week",
+        "description": f"**{count}** CGM Recommended {stock_word} report earnings this week",
         "color": 0x5865F2,  # Discord blurple
         "fields": fields,
         "footer": {
