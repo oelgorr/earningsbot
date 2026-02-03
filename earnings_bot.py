@@ -285,6 +285,97 @@ def filter_watched_earnings(earnings_calendar: list) -> list:
     return [e for e in earnings_calendar if e.get("symbol", "").upper() in watched_set]
 
 
+def fetch_week_earnings(start_date: str, end_date: str) -> list:
+    """
+    Fetch earnings calendar for a date range (week).
+    """
+    url = f"{FMP_STABLE_URL}/earnings-calendar"
+    params = {
+        "from": start_date,
+        "to": end_date,
+        "apikey": FMP_API_KEY
+    }
+
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"Error fetching earnings calendar: {e}")
+        return []
+
+
+def create_weekly_preview_embed(upcoming_earnings: list) -> dict:
+    """Create an embed showing upcoming earnings for the week."""
+
+    # Group by date
+    by_date = {}
+    for earning in upcoming_earnings:
+        date = earning.get("date", "Unknown")
+        if date not in by_date:
+            by_date[date] = []
+        by_date[date].append(earning.get("symbol", "???"))
+
+    # Build fields for each day
+    fields = []
+    for date in sorted(by_date.keys()):
+        tickers = by_date[date]
+        # Format date nicely
+        try:
+            dt = datetime.strptime(date, "%Y-%m-%d")
+            day_name = dt.strftime("%A, %b %d")
+        except ValueError:
+            day_name = date
+
+        fields.append({
+            "name": f"📅 {day_name}",
+            "value": ", ".join(tickers),
+            "inline": False
+        })
+
+    return {
+        "title": "📊 Upcoming Earnings This Week",
+        "description": f"**{len(upcoming_earnings)}** companies from your watchlist report earnings this week",
+        "color": 0x5865F2,  # Discord blurple
+        "fields": fields,
+        "footer": {
+            "text": "EarningsBot • Weekly Preview"
+        }
+    }
+
+
+def process_weekly_preview() -> list:
+    """
+    Process upcoming earnings for the current week.
+    Returns list of embeds to post.
+    """
+    tz = pytz.timezone(TIMEZONE)
+    now = datetime.now(tz)
+
+    # Get Monday of current week
+    monday = now - timedelta(days=now.weekday())
+    friday = monday + timedelta(days=4)
+
+    start_date = monday.strftime("%Y-%m-%d")
+    end_date = friday.strftime("%Y-%m-%d")
+
+    print(f"Fetching earnings for week: {start_date} to {end_date}...")
+
+    # Fetch all earnings for the week
+    calendar = fetch_week_earnings(start_date, end_date)
+    print(f"Found {len(calendar)} total earnings reports this week")
+
+    # Filter to watched tickers
+    watched_earnings = filter_watched_earnings(calendar)
+    print(f"Found {len(watched_earnings)} watched companies reporting this week")
+
+    if not watched_earnings:
+        return []
+
+    # Create preview embed
+    return [create_weekly_preview_embed(watched_earnings)]
+
+
 def post_to_discord(embeds: list) -> bool:
     """Post embeds to Discord webhook."""
     if not DISCORD_WEBHOOK_URL:
@@ -477,6 +568,7 @@ def run_test():
 def main():
     parser = argparse.ArgumentParser(description="EarningsBot - Discord earnings notifications")
     parser.add_argument("--date", help="Specific date to check (YYYY-MM-DD)", default=None)
+    parser.add_argument("--weekly", action="store_true", help="Post weekly preview of upcoming earnings")
     parser.add_argument("--test", action="store_true", help="Run with test data")
     parser.add_argument("--dry-run", action="store_true", help="Process but don't post to Discord")
     args = parser.parse_args()
@@ -494,6 +586,26 @@ def main():
     # Run test mode
     if args.test:
         run_test()
+        return
+
+    # Run weekly preview mode
+    if args.weekly:
+        print("Running weekly preview...")
+        embeds = process_weekly_preview()
+
+        if not embeds:
+            print("✅ No watched companies reporting this week - nothing to post")
+            return
+
+        if args.dry_run:
+            print(f"\n[DRY RUN] Would post weekly preview")
+            return
+
+        if post_to_discord(embeds):
+            print("✅ Posted weekly preview to Discord")
+        else:
+            print("❌ Failed to post weekly preview")
+            sys.exit(1)
         return
 
     # Determine date to check

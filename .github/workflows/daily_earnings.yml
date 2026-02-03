@@ -30,6 +30,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Run Weekly Preview (Mondays only)
+        if: github.event.schedule == '0 12 * * *' && contains('Mon', steps.date.outputs.day) || github.event_name == 'workflow_dispatch'
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          DAY=$(date +%a)
+          if [ "$DAY" = "Mon" ] || [ -n "${{ github.event.inputs.date }}" ]; then
+            python earnings_bot.py --weekly
+          fi
+
       - name: Run EarningsBot
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
