@@ -58,3 +58,9 @@ jobs:
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           CONGRESS_DISCORD_WEBHOOK_URL: ${{ secrets.CONGRESS_DISCORD_WEBHOOK_URL }}
         run: python congress_bot.py --days 7
+
+      - name: Run CEOBot
+        env:
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          CONGRESS_DISCORD_WEBHOOK_URL: ${{ secrets.CONGRESS_DISCORD_WEBHOOK_URL }}
+        run: python ceo_bot.py --days 7
