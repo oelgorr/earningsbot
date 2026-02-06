@@ -94,6 +94,28 @@ def fetch_company_profile(ticker: str) -> Optional[dict]:
         return None
 
 
+def fetch_stock_quote(ticker: str) -> Optional[dict]:
+    """
+    Fetch real-time stock quote including pre/post market data.
+    Returns dict with price, change, changesPercentage, etc.
+    """
+    url = f"{FMP_STABLE_URL}/quote"
+    params = {"symbol": ticker, "apikey": FMP_API_KEY}
+
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        if isinstance(data, list) and data:
+            return data[0]
+        elif isinstance(data, dict):
+            return data
+        return None
+    except requests.RequestException as e:
+        print(f"Error fetching quote for {ticker}: {e}")
+        return None
+
+
 def fetch_earnings_history(ticker: str, limit: int = 4) -> list:
     """Fetch historical earnings for YoY comparison. Requires higher FMP plan."""
     # Skip this call entirely - requires paid plan
@@ -475,6 +497,13 @@ def process_earnings(date: str) -> tuple[list, int, int]:
         else:
             fiscal_period = "Latest"
 
+        # Get stock quote for price movement
+        print(f"  Fetching stock quote for {ticker}...")
+        quote = fetch_stock_quote(ticker)
+        stock_change_percent = None
+        if quote:
+            stock_change_percent = quote.get("changesPercentage")
+
         # Get guidance, takeaways, and ATH status using Perplexity AI
         guidance = None
         takeaways = None
@@ -507,7 +536,8 @@ def process_earnings(date: str) -> tuple[list, int, int]:
             eps_previous=eps_previous,
             guidance=guidance,
             takeaways=takeaways,
-            is_ath=is_ath
+            is_ath=is_ath,
+            stock_change_percent=stock_change_percent
         )
         embeds.append(embed)
 
@@ -535,7 +565,8 @@ def run_test():
             eps_actual=1.64,
             eps_estimate=1.60,
             eps_previous=1.46,
-            guidance="Q1 2026 revenue expected between $118B-$122B"
+            guidance="Q1 2026 revenue expected between $118B-$122B",
+            stock_change_percent=4.2
         ),
         create_earnings_embed(
             ticker="MSFT",
@@ -547,7 +578,8 @@ def run_test():
             eps_actual=2.93,
             eps_estimate=2.89,
             eps_previous=2.69,
-            guidance=None
+            guidance=None,
+            stock_change_percent=2.8
         ),
         create_earnings_embed(
             ticker="NFLX",
@@ -559,7 +591,8 @@ def run_test():
             eps_actual=4.11,
             eps_estimate=4.45,
             eps_previous=3.89,
-            guidance="Q1 2026 subscriber growth to slow"
+            guidance="Q1 2026 subscriber growth to slow",
+            stock_change_percent=-7.4
         ),
     ]
 

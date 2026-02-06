@@ -45,6 +45,21 @@ def format_percent_change(current: float, previous: float) -> str:
     return f" {arrow} {change:+.1f}% YoY"
 
 
+def format_stock_movement(change_percent: Optional[float], is_premarket: bool = True) -> str:
+    """Format stock price movement with emoji indicator."""
+    if change_percent is None:
+        return ""
+
+    market_type = "pre-market" if is_premarket else "after-hours"
+
+    if change_percent > 0:
+        return f"📈 Stock is **up {change_percent:.1f}%** {market_type}"
+    elif change_percent < 0:
+        return f"📉 Stock is **down {abs(change_percent):.1f}%** {market_type}"
+    else:
+        return f"➡️ Stock is **flat** {market_type}"
+
+
 def create_earnings_embed(
     ticker: str,
     company_name: str,
@@ -58,6 +73,7 @@ def create_earnings_embed(
     guidance: Optional[str] = None,
     takeaways: Optional[list] = None,
     is_ath: bool = False,
+    stock_change_percent: Optional[float] = None,
 ) -> dict:
     """
     Create a Discord embed for an earnings report.
@@ -136,8 +152,11 @@ def create_earnings_embed(
     if is_ath:
         title += " 🏆 ATH!"
 
-    # Build description with company name and optional ATH note
+    # Build description with company name, stock movement, and optional ATH note
     description = f"**{company_name}**"
+    if stock_change_percent is not None:
+        stock_movement = format_stock_movement(stock_change_percent)
+        description += f"\n{stock_movement}"
     if is_ath:
         description += "\n🚀 *Stock reached all-time high!*"
 
