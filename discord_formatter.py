@@ -74,6 +74,7 @@ def create_earnings_embed(
     takeaways: Optional[list] = None,
     is_ath: bool = False,
     stock_change_percent: Optional[float] = None,
+    buy_price: Optional[str] = None,
 ) -> dict:
     """
     Create a Discord embed for an earnings report.
@@ -144,6 +145,14 @@ def create_earnings_embed(
         fields.append({
             "name": "📌 Key Takeaways",
             "value": takeaways_text,
+            "inline": False
+        })
+
+    # Recommended buy price field (if available)
+    if buy_price:
+        fields.append({
+            "name": "💲 Buy Below",
+            "value": buy_price,
             "inline": False
         })
 

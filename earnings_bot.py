@@ -242,6 +242,58 @@ Format exactly like:
         return None
 
 
+def fetch_recommended_buy_price(ticker: str, year: int, quarter: int, current_price: Optional[float] = None) -> Optional[str]:
+    """
+    Fetch a recommended buy price using Perplexity AI after earnings report.
+    Considers earnings results, growth, valuation, and forward guidance.
+    """
+    if not PERPLEXITY_API_KEY:
+        return None
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        price_context = f"The stock currently trades at ${current_price:.2f}. " if current_price else ""
+
+        payload = {
+            "model": "sonar",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""Based on {ticker}'s Q{quarter} {year} earnings results, what is the maximum price you would recommend buying at?
+
+{price_context}Consider the earnings results, revenue growth, EPS trends, forward guidance, and valuation.
+Return ONLY a single price number (e.g. "$150.00"). No range, no explanation, no preamble, no disclaimers. Just the price."""
+                }
+            ],
+            "max_tokens": 50
+        }
+
+        response = requests.post(
+            PERPLEXITY_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        buy_price = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        buy_price = strip_citations(buy_price)
+
+        if not buy_price or len(buy_price) > 50:
+            return None
+
+        return buy_price
+
+    except Exception as e:
+        print(f"  Error fetching buy price for {ticker}: {e}")
+        return None
+
+
 def check_all_time_high(ticker: str, date: str) -> bool:
     """
     Check if stock hit an all-time high on the given date using Perplexity.
@@ -504,10 +556,11 @@ def process_earnings(date: str) -> tuple[list, int, int]:
         if quote:
             stock_change_percent = quote.get("changesPercentage")
 
-        # Get guidance, takeaways, and ATH status using Perplexity AI
+        # Get guidance, takeaways, ATH status, and buy price using Perplexity AI
         guidance = None
         takeaways = None
         is_ath = False
+        buy_price = None
         if PERPLEXITY_API_KEY and year and quarter:
             print(f"  Fetching guidance for {ticker}...")
             guidance = fetch_earnings_guidance(ticker, year, quarter)
@@ -515,6 +568,9 @@ def process_earnings(date: str) -> tuple[list, int, int]:
             takeaways = fetch_key_takeaways(ticker, year, quarter)
             print(f"  Checking ATH for {ticker}...")
             is_ath = check_all_time_high(ticker, announcement_date)
+            print(f"  Fetching recommended buy price for {ticker}...")
+            current_price = quote.get("price") if quote else None
+            buy_price = fetch_recommended_buy_price(ticker, year, quarter, current_price)
 
         # Count beats/misses
         if eps_actual is not None and eps_estimate is not None:
@@ -537,7 +593,8 @@ def process_earnings(date: str) -> tuple[list, int, int]:
             guidance=guidance,
             takeaways=takeaways,
             is_ath=is_ath,
-            stock_change_percent=stock_change_percent
+            stock_change_percent=stock_change_percent,
+            buy_price=buy_price
         )
         embeds.append(embed)
 
@@ -566,7 +623,8 @@ def run_test():
             eps_estimate=1.60,
             eps_previous=1.46,
             guidance="Q1 2026 revenue expected between $118B-$122B",
-            stock_change_percent=4.2
+            stock_change_percent=4.2,
+            buy_price="$220.00"
         ),
         create_earnings_embed(
             ticker="MSFT",
@@ -579,7 +637,8 @@ def run_test():
             eps_estimate=2.89,
             eps_previous=2.69,
             guidance=None,
-            stock_change_percent=2.8
+            stock_change_percent=2.8,
+            buy_price="$430.00"
         ),
         create_earnings_embed(
             ticker="NFLX",
@@ -592,7 +651,8 @@ def run_test():
             eps_estimate=4.45,
             eps_previous=3.89,
             guidance="Q1 2026 subscriber growth to slow",
-            stock_change_percent=-7.4
+            stock_change_percent=-7.4,
+            buy_price="$880.00"
         ),
     ]
 
