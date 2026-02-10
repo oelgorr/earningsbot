@@ -360,6 +360,89 @@ def filter_watched_earnings(earnings_calendar: list) -> list:
     return [e for e in earnings_calendar if e.get("symbol", "").upper() in watched_set]
 
 
+def fetch_earnings_data_perplexity(ticker: str, date: str) -> dict:
+    """
+    Fetch actual earnings numbers (EPS, revenue) via Perplexity AI
+    for tickers that FMP's free plan missed.
+    Returns dict with epsActual, epsEstimated, revenueActual, revenueEstimated.
+    """
+    if not PERPLEXITY_API_KEY:
+        return {}
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "sonar",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""What were {ticker}'s earnings results reported on {date}?
+
+I need these 4 numbers:
+1. Actual EPS (adjusted/non-GAAP)
+2. Estimated EPS (analyst consensus)
+3. Actual revenue
+4. Estimated revenue
+
+Return ONLY in this exact format (numbers only, revenue in dollars):
+EPS_ACTUAL: 0.55
+EPS_ESTIMATED: 0.50
+REVENUE_ACTUAL: 900000000
+REVENUE_ESTIMATED: 880000000
+
+No explanations. Just the 4 lines."""
+                }
+            ],
+            "max_tokens": 150
+        }
+
+        response = requests.post(
+            PERPLEXITY_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        content = strip_citations(content)
+        print(f"  Perplexity earnings data for {ticker}: {content}")
+
+        result = {}
+        for line in content.split("\n"):
+            line = line.strip()
+            try:
+                if "EPS_ACTUAL" in line.upper():
+                    val = re.search(r'[-]?[\d.]+', line.split(":")[-1])
+                    if val:
+                        result["epsActual"] = float(val.group())
+                elif "EPS_ESTIMATED" in line.upper():
+                    val = re.search(r'[-]?[\d.]+', line.split(":")[-1])
+                    if val:
+                        result["epsEstimated"] = float(val.group())
+                elif "REVENUE_ACTUAL" in line.upper():
+                    val = re.search(r'[\d.]+', line.split(":")[-1].replace(",", ""))
+                    if val:
+                        result["revenueActual"] = float(val.group())
+                elif "REVENUE_ESTIMATED" in line.upper():
+                    val = re.search(r'[\d.]+', line.split(":")[-1].replace(",", ""))
+                    if val:
+                        result["revenueEstimated"] = float(val.group())
+            except (ValueError, IndexError):
+                continue
+
+        return result
+
+    except Exception as e:
+        print(f"  Error fetching earnings data for {ticker}: {e}")
+        return {}
+
+
 def fetch_missing_earnings_perplexity(date: str, already_found: list) -> list:
     """
     Use Perplexity AI to find watched tickers that reported earnings on a date
@@ -426,15 +509,20 @@ If none reported on {date}, respond with: NONE"""
             word = word.strip().upper().strip(".")
             if word in watched_upper and word not in found_in_response:
                 found_in_response.add(word)
+                print(f"  Perplexity fallback found: {word} reported on {date}")
+
+                # Fetch actual earnings numbers for this ticker
+                print(f"  Fetching earnings data for {word} via Perplexity...")
+                earnings_data = fetch_earnings_data_perplexity(word, date)
+
                 all_found.append({
                     "symbol": word,
                     "date": date,
-                    "epsActual": None,
-                    "epsEstimated": None,
-                    "revenueActual": None,
-                    "revenueEstimated": None,
+                    "epsActual": earnings_data.get("epsActual"),
+                    "epsEstimated": earnings_data.get("epsEstimated"),
+                    "revenueActual": earnings_data.get("revenueActual"),
+                    "revenueEstimated": earnings_data.get("revenueEstimated"),
                 })
-                print(f"  Perplexity fallback found: {word} reported on {date}")
 
         return all_found
 
