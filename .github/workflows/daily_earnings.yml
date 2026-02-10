@@ -53,6 +53,25 @@ jobs:
             python earnings_bot.py
           fi
 
+      - name: Commit buy prices
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add buy_prices.json
+          git diff --cached --quiet || git commit -m "Update buy prices [skip ci]" && git push
+
+      - name: Update Google Sheet
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+        run: python sheets_updater.py
+
+      - name: Run PriceAlertBot
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python price_alert_bot.py
+
       - name: Run CongressBot
         env:
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}

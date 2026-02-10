@@ -14,6 +14,7 @@ Usage:
 import os
 import sys
 import re
+import json
 import argparse
 from datetime import datetime, timedelta
 from typing import Optional
@@ -479,10 +480,31 @@ def post_to_discord(embeds: list) -> bool:
     return True
 
 
-def process_earnings(date: str) -> tuple[list, int, int]:
+def save_buy_prices(buy_price_data: dict, filepath: str = "buy_prices.json"):
+    """
+    Save buy prices to JSON file, merging with existing data.
+    Only updates tickers that have new buy prices.
+    """
+    existing = {}
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r") as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            existing = {}
+
+    existing.update(buy_price_data)
+
+    with open(filepath, "w") as f:
+        json.dump(existing, f, indent=2)
+
+    print(f"Saved buy prices for {len(buy_price_data)} ticker(s) to {filepath}")
+
+
+def process_earnings(date: str) -> tuple[list, int, int, dict]:
     """
     Process earnings for a given date.
-    Returns (embeds, beats, misses).
+    Returns (embeds, beats, misses, buy_price_data).
     """
     print(f"Fetching earnings for {date}...")
 
@@ -495,11 +517,12 @@ def process_earnings(date: str) -> tuple[list, int, int]:
     print(f"Found {len(watched_earnings)} watched companies")
 
     if not watched_earnings:
-        return [], 0, 0  # Return empty - don't post if no watched companies reported
+        return [], 0, 0, {}  # Return empty - don't post if no watched companies reported
 
     embeds = []
     total_beats = 0
     total_misses = 0
+    buy_price_data = {}
 
     for earning in watched_earnings:
         ticker = earning.get("symbol", "")
@@ -598,12 +621,20 @@ def process_earnings(date: str) -> tuple[list, int, int]:
         )
         embeds.append(embed)
 
+        # Track buy price for saving
+        if buy_price:
+            buy_price_data[ticker] = {
+                "buy_price": buy_price,
+                "date": date,
+                "fiscal_period": fiscal_period
+            }
+
     # Add summary embed at the beginning
     if len(embeds) > 1:
         summary = create_summary_embed(len(embeds), total_beats, total_misses)
         embeds.insert(0, summary)
 
-    return embeds, total_beats, total_misses
+    return embeds, total_beats, total_misses, buy_price_data
 
 
 def run_test():
@@ -710,7 +741,11 @@ def main():
     print(f"Checking earnings for: {check_date}")
 
     # Process earnings
-    embeds, beats, misses = process_earnings(check_date)
+    embeds, beats, misses, buy_price_data = process_earnings(check_date)
+
+    # Save buy prices (even on dry run, so they can be tested)
+    if buy_price_data:
+        save_buy_prices(buy_price_data)
 
     # Skip if no watched companies reported
     if not embeds:
