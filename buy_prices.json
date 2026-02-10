@@ -3,5 +3,15 @@
     "buy_price": "$210.00",
     "date": "2026-02-05",
     "fiscal_period": "Q4 2025"
+  },
+  "DDOG": {
+    "buy_price": "$180.00",
+    "date": "2026-02-10",
+    "fiscal_period": "Q4 2025"
+  },
+  "RACE": {
+    "buy_price": "$336.00",
+    "date": "2026-02-10",
+    "fiscal_period": "Q4 2025"
   }
 }
