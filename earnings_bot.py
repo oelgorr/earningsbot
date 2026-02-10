@@ -360,6 +360,179 @@ def filter_watched_earnings(earnings_calendar: list) -> list:
     return [e for e in earnings_calendar if e.get("symbol", "").upper() in watched_set]
 
 
+def fetch_missing_earnings_perplexity(date: str, already_found: list) -> list:
+    """
+    Use Perplexity AI to find watched tickers that reported earnings on a date
+    but were missing from FMP's calendar (free plan has incomplete data).
+    Returns list of dicts matching FMP calendar format for any found tickers.
+    """
+    if not PERPLEXITY_API_KEY:
+        return []
+
+    # Determine which watched tickers FMP already found
+    found_set = set(e.get("symbol", "").upper() for e in already_found)
+    missing_tickers = [t for t in WATCHED_TICKERS if t.upper() not in found_set]
+
+    if not missing_tickers:
+        return []
+
+    ticker_list = ", ".join(missing_tickers)
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        # Single precise query asking Perplexity to check all tickers
+        payload = {
+            "model": "sonar",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""I need to know which of these stocks reported their quarterly earnings on {date}:
+
+{ticker_list}
+
+Search for each ticker's earnings date. Only include a ticker if it actually reported earnings on exactly {date} (not a different date).
+Return ONLY a comma-separated list of ticker symbols. No explanations, no dates, no other text.
+If none reported on {date}, respond with: NONE"""
+                }
+            ],
+            "max_tokens": 200
+        }
+
+        response = requests.post(
+            PERPLEXITY_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        content = strip_citations(content)
+        print(f"  Perplexity response: {content}")
+
+        if "NONE" in content.upper() and len(content) < 20:
+            return []
+
+        # Parse tickers from response - only accept tickers that are in our watchlist
+        all_found = []
+        found_in_response = set()
+        watched_upper = set(t.upper() for t in missing_tickers)
+        for word in re.split(r'[,\s\n]+', content):
+            word = word.strip().upper().strip(".")
+            if word in watched_upper and word not in found_in_response:
+                found_in_response.add(word)
+                all_found.append({
+                    "symbol": word,
+                    "date": date,
+                    "epsActual": None,
+                    "epsEstimated": None,
+                    "revenueActual": None,
+                    "revenueEstimated": None,
+                })
+                print(f"  Perplexity fallback found: {word} reported on {date}")
+
+        return all_found
+
+    except Exception as e:
+        print(f"  Error in Perplexity earnings check: {e}")
+        return []
+
+
+def fetch_missing_weekly_earnings_perplexity(start_date: str, end_date: str, already_found: list) -> list:
+    """
+    Use Perplexity AI to find watched tickers reporting earnings during a week
+    that were missing from FMP's calendar.
+    Returns list of dicts matching FMP calendar format.
+    """
+    if not PERPLEXITY_API_KEY:
+        return []
+
+    found_set = set(e.get("symbol", "").upper() for e in already_found)
+    missing_tickers = [t for t in WATCHED_TICKERS if t.upper() not in found_set]
+
+    if not missing_tickers:
+        return []
+
+    ticker_list = ", ".join(missing_tickers)
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "sonar",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""Which of these stocks are scheduled to report their quarterly earnings between {start_date} and {end_date} (inclusive)?
+
+{ticker_list}
+
+Search for each ticker's next earnings date. Only include tickers with earnings dates that fall within {start_date} to {end_date}.
+For each match, return the format: TICKER:YYYY-MM-DD (one per line).
+If none of them report during this period, respond with: NONE"""
+                }
+            ],
+            "max_tokens": 500
+        }
+
+        response = requests.post(
+            PERPLEXITY_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        content = strip_citations(content)
+        print(f"  Perplexity weekly response: {content}")
+
+        if "NONE" in content.upper() and len(content) < 20:
+            return []
+
+        # Parse TICKER:DATE format from response
+        all_found = []
+        watched_upper = set(t.upper() for t in missing_tickers)
+
+        for line in content.split("\n"):
+            line = line.strip().lstrip("•-*0123456789.) ")
+            # Try to extract a ticker and date from each line
+            date_match = re.search(r'(\d{4}-\d{2}-\d{2})', line)
+            if not date_match:
+                continue
+            report_date = date_match.group(1)
+
+            # Check which ticker this line is about
+            for ticker in missing_tickers:
+                # Use word boundary matching to avoid "S" matching "SHOP"
+                if re.search(r'\b' + re.escape(ticker.upper()) + r'\b', line.upper()) and ticker.upper() not in found_set:
+                    all_found.append({
+                        "symbol": ticker,
+                        "date": report_date,
+                        "epsActual": None,
+                        "epsEstimated": None,
+                        "revenueActual": None,
+                        "revenueEstimated": None,
+                    })
+                    found_set.add(ticker.upper())
+                    print(f"  Perplexity fallback found: {ticker} reporting on {report_date}")
+
+        return all_found
+
+    except Exception as e:
+        print(f"  Error in Perplexity weekly earnings check: {e}")
+        return []
+
+
 def fetch_week_earnings(start_date: str, end_date: str) -> list:
     """
     Fetch earnings calendar for a date range (week).
@@ -440,13 +613,22 @@ def process_weekly_preview() -> list:
 
     print(f"Fetching earnings for week: {start_date} to {end_date}...")
 
-    # Fetch all earnings for the week
+    # Fetch all earnings for the week from FMP
     calendar = fetch_week_earnings(start_date, end_date)
-    print(f"Found {len(calendar)} total earnings reports this week")
+    print(f"Found {len(calendar)} total earnings reports this week from FMP")
 
     # Filter to watched tickers
     watched_earnings = filter_watched_earnings(calendar)
-    print(f"Found {len(watched_earnings)} watched companies reporting this week")
+    print(f"Found {len(watched_earnings)} watched companies from FMP")
+
+    # Use Perplexity fallback to catch tickers FMP missed
+    print("Checking Perplexity for any missed weekly earnings...")
+    missed_earnings = fetch_missing_weekly_earnings_perplexity(start_date, end_date, watched_earnings)
+    if missed_earnings:
+        print(f"Found {len(missed_earnings)} additional companies via Perplexity fallback")
+        watched_earnings.extend(missed_earnings)
+    else:
+        print("No additional earnings found via Perplexity")
 
     if not watched_earnings:
         return []
@@ -508,13 +690,22 @@ def process_earnings(date: str) -> tuple[list, int, int, dict]:
     """
     print(f"Fetching earnings for {date}...")
 
-    # Get earnings calendar
+    # Get earnings calendar from FMP
     calendar = fetch_earnings_calendar(date)
-    print(f"Found {len(calendar)} total earnings reports")
+    print(f"Found {len(calendar)} total earnings reports from FMP")
 
     # Filter to watched tickers
     watched_earnings = filter_watched_earnings(calendar)
-    print(f"Found {len(watched_earnings)} watched companies")
+    print(f"Found {len(watched_earnings)} watched companies from FMP")
+
+    # Use Perplexity fallback to catch tickers FMP missed (free plan has incomplete data)
+    print("Checking Perplexity for any missed earnings...")
+    missed_earnings = fetch_missing_earnings_perplexity(date, watched_earnings)
+    if missed_earnings:
+        print(f"Found {len(missed_earnings)} additional companies via Perplexity fallback")
+        watched_earnings.extend(missed_earnings)
+    else:
+        print("No additional earnings found via Perplexity")
 
     if not watched_earnings:
         return [], 0, 0, {}  # Return empty - don't post if no watched companies reported
