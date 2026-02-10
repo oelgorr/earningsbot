@@ -13,6 +13,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: write
+
 jobs:
   post-earnings:
     runs-on: ubuntu-latest
@@ -58,7 +61,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add buy_prices.json
-          git diff --cached --quiet || git commit -m "Update buy prices [skip ci]" && git push
+          if ! git diff --cached --quiet; then
+            git commit -m "Update buy prices [skip ci]"
+            git push
+          fi
 
       - name: Update Google Sheet
         env:
