@@ -56,16 +56,6 @@ jobs:
             python earnings_bot.py
           fi
 
-      - name: Commit buy prices
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add buy_prices.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Update buy prices [skip ci]"
-            git push
-          fi
-
       - name: Update Google Sheet
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -89,3 +79,13 @@ jobs:
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           CONGRESS_DISCORD_WEBHOOK_URL: ${{ secrets.CONGRESS_DISCORD_WEBHOOK_URL }}
         run: python ceo_bot.py --days 7
+
+      - name: Commit data files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add buy_prices.json posted_congress_trades.json posted_insider_trades.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update bot data files [skip ci]"
+            git push
+          fi

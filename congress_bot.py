@@ -187,9 +187,37 @@ def post_to_discord(embeds: list) -> bool:
     return True
 
 
+def get_trade_key(trade: dict) -> str:
+    """Generate a unique key for a trade to track duplicates."""
+    politician = trade.get("politician", "").lower().strip()
+    ticker = trade.get("ticker", "").upper().strip()
+    trade_date = trade.get("trade_date", "").strip()
+    amount = trade.get("amount", "").strip()
+    return f"{politician}|{ticker}|{trade_date}|{amount}"
+
+
+def load_posted_trades(filepath: str = "posted_congress_trades.json") -> set:
+    """Load set of previously posted trade keys."""
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r") as f:
+                return set(json.load(f))
+        except (json.JSONDecodeError, IOError):
+            pass
+    return set()
+
+
+def save_posted_trades(posted: set, filepath: str = "posted_congress_trades.json"):
+    """Save posted trade keys, keeping only last 500 to prevent file growth."""
+    posted_list = sorted(posted)[-500:]
+    with open(filepath, "w") as f:
+        json.dump(posted_list, f, indent=2)
+
+
 def process_congress_trades(days: int = 7) -> list:
     """
     Process congressional trades for a date range.
+    Skips trades that have already been posted.
     Returns list of embeds to post.
     """
     print(f"Fetching Congress trades from the last {days} days...")
@@ -200,17 +228,36 @@ def process_congress_trades(days: int = 7) -> list:
     if not trades:
         return []
 
+    # Filter out already-posted trades
+    posted = load_posted_trades()
+    new_trades = []
+    for trade in trades:
+        key = get_trade_key(trade)
+        if key not in posted:
+            new_trades.append(trade)
+            posted.add(key)
+        else:
+            print(f"  Skipping already posted: {trade.get('politician', '')} - {trade.get('ticker', '')}")
+
+    print(f"New trades to post: {len(new_trades)} (skipped {len(trades) - len(new_trades)} duplicates)")
+
+    if not new_trades:
+        return []
+
+    # Save updated posted trades
+    save_posted_trades(posted)
+
     embeds = []
 
     # Get unique politicians
-    politicians = set(t.get("politician", "") for t in trades)
+    politicians = set(t.get("politician", "") for t in new_trades)
 
     # Add summary
-    if len(trades) > 1:
-        embeds.append(create_summary_embed(len(trades), len(politicians)))
+    if len(new_trades) > 1:
+        embeds.append(create_summary_embed(len(new_trades), len(politicians)))
 
     # Add individual trade embeds
-    for trade in trades:
+    for trade in new_trades:
         embeds.append(create_trade_embed(trade))
 
     return embeds
