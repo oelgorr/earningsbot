@@ -183,9 +183,37 @@ def post_to_discord(embeds: list) -> bool:
     return True
 
 
+def get_trade_key(trade: dict) -> str:
+    """Generate a unique key for a trade to track duplicates."""
+    executive = trade.get("executive", "").lower().strip()
+    ticker = trade.get("ticker", "").upper().strip()
+    trade_date = trade.get("trade_date", "").strip()
+    value = trade.get("value", "").strip()
+    return f"{executive}|{ticker}|{trade_date}|{value}"
+
+
+def load_posted_trades(filepath: str = "posted_insider_trades.json") -> set:
+    """Load set of previously posted trade keys."""
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r") as f:
+                return set(json.load(f))
+        except (json.JSONDecodeError, IOError):
+            pass
+    return set()
+
+
+def save_posted_trades(posted: set, filepath: str = "posted_insider_trades.json"):
+    """Save posted trade keys, keeping only last 500 to prevent file growth."""
+    posted_list = sorted(posted)[-500:]
+    with open(filepath, "w") as f:
+        json.dump(posted_list, f, indent=2)
+
+
 def process_insider_purchases(days: int = 7) -> list:
     """
     Process insider purchases using Perplexity.
+    Skips trades that have already been posted.
     Returns list of embeds to post.
     """
     print(f"Fetching insider purchases from the last {days} days...")
@@ -196,17 +224,36 @@ def process_insider_purchases(days: int = 7) -> list:
     if not trades:
         return []
 
+    # Filter out already-posted trades
+    posted = load_posted_trades()
+    new_trades = []
+    for trade in trades:
+        key = get_trade_key(trade)
+        if key not in posted:
+            new_trades.append(trade)
+            posted.add(key)
+        else:
+            print(f"  Skipping already posted: {trade.get('executive', '')} - {trade.get('ticker', '')}")
+
+    print(f"New trades to post: {len(new_trades)} (skipped {len(trades) - len(new_trades)} duplicates)")
+
+    if not new_trades:
+        return []
+
+    # Save updated posted trades
+    save_posted_trades(posted)
+
     embeds = []
 
     # Get unique executives
-    executives = set(t.get("executive", "") for t in trades)
+    executives = set(t.get("executive", "") for t in new_trades)
 
     # Add summary
-    if len(trades) > 1:
-        embeds.append(create_summary_embed(len(trades), len(executives)))
+    if len(new_trades) > 1:
+        embeds.append(create_summary_embed(len(new_trades), len(executives)))
 
     # Add individual trade embeds (limit to 9 to stay under Discord's 10 embed limit)
-    for trade in trades[:9]:
+    for trade in new_trades[:9]:
         embeds.append(create_trade_embed(trade))
 
     return embeds
