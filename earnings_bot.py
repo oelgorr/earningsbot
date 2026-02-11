@@ -446,7 +446,10 @@ No explanations. Just the 4 lines."""
 def verify_earnings_date_perplexity(ticker: str, date: str) -> bool:
     """
     Verify with Perplexity that a specific ticker actually reported earnings on a date.
-    Uses a focused single-ticker query to avoid false positives from bulk queries.
+    Uses two checks:
+    1. Ask for the actual earnings date and compare (most reliable)
+    2. If the date returned is old (Perplexity index lag), try a direct YES/NO as backup
+    Only confirms if at least one check passes AND the earnings data query succeeds.
     """
     if not PERPLEXITY_API_KEY:
         return False
@@ -457,16 +460,17 @@ def verify_earnings_date_perplexity(ticker: str, date: str) -> bool:
             "Content-Type": "application/json"
         }
 
+        # Step 1: Ask for the actual most recent earnings date
         payload = {
             "model": "sonar",
             "messages": [
                 {
                     "role": "user",
-                    "content": f"""Did {ticker} report its quarterly earnings results on {date}?
-Answer ONLY with YES or NO. Nothing else."""
+                    "content": f"""What date did {ticker} most recently report its quarterly earnings results?
+Return ONLY the date in YYYY-MM-DD format. Nothing else."""
                 }
             ],
-            "max_tokens": 10
+            "max_tokens": 20
         }
 
         response = requests.post(
@@ -478,9 +482,57 @@ Answer ONLY with YES or NO. Nothing else."""
         response.raise_for_status()
 
         data = response.json()
-        answer = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip().upper()
+        answer = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
         answer = strip_citations(answer)
-        return "YES" in answer
+
+        # Extract date from response
+        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', answer)
+        if date_match:
+            reported_date = date_match.group(1)
+            if reported_date == date:
+                print(f"    {ticker}: confirmed earnings on {date}")
+                return True
+
+            # If Perplexity returned an old date (index lag for today's earnings),
+            # check if the returned date is significantly before our target date
+            try:
+                target = datetime.strptime(date, "%Y-%m-%d")
+                returned = datetime.strptime(reported_date, "%Y-%m-%d")
+                days_diff = (target - returned).days
+
+                # If the last known earnings was 30-120 days ago, this ticker
+                # could be reporting again now (quarterly cadence)
+                if 30 <= days_diff <= 120:
+                    # Do a YES/NO backup check with very specific prompt
+                    backup_payload = {
+                        "model": "sonar",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": f"""Did {ticker} release its quarterly earnings report on exactly {date}?
+I know their previous earnings were on {reported_date}. I am asking specifically about {date}.
+If you cannot confirm earnings were released on exactly {date}, answer NO.
+Answer ONLY YES or NO."""
+                            }
+                        ],
+                        "max_tokens": 10
+                    }
+                    backup_response = requests.post(
+                        PERPLEXITY_API_URL,
+                        headers=headers,
+                        json=backup_payload,
+                        timeout=30
+                    )
+                    backup_response.raise_for_status()
+                    backup_answer = backup_response.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip().upper()
+                    backup_answer = strip_citations(backup_answer)
+                    if "YES" in backup_answer:
+                        print(f"    {ticker}: backup check confirmed earnings on {date} (last known: {reported_date})")
+                        return True
+            except ValueError:
+                pass
+
+        return False
 
     except Exception as e:
         print(f"  Error verifying earnings date for {ticker}: {e}")
@@ -519,20 +571,24 @@ def fetch_missing_earnings_perplexity(date: str, already_found: list) -> list:
 
         for ticker in missing_tickers:
             if verify_earnings_date_perplexity(ticker, date):
-                print(f"  ✅ {ticker} confirmed - reported on {date}")
-
-                # Fetch actual earnings numbers
+                # Fetch actual earnings numbers to confirm and populate data
                 print(f"  Fetching earnings data for {ticker} via Perplexity...")
                 earnings_data = fetch_earnings_data_perplexity(ticker, date)
 
-                all_found.append({
-                    "symbol": ticker,
-                    "date": date,
-                    "epsActual": earnings_data.get("epsActual"),
-                    "epsEstimated": earnings_data.get("epsEstimated"),
-                    "revenueActual": earnings_data.get("revenueActual"),
-                    "revenueEstimated": earnings_data.get("revenueEstimated"),
-                })
+                # Only include if we got at least EPS actual data
+                # This filters out false positives where Perplexity can't find real data
+                if earnings_data.get("epsActual") is not None:
+                    print(f"  ✅ {ticker} confirmed with data - reported on {date}")
+                    all_found.append({
+                        "symbol": ticker,
+                        "date": date,
+                        "epsActual": earnings_data.get("epsActual"),
+                        "epsEstimated": earnings_data.get("epsEstimated"),
+                        "revenueActual": earnings_data.get("revenueActual"),
+                        "revenueEstimated": earnings_data.get("revenueEstimated"),
+                    })
+                else:
+                    print(f"  ⚠️ {ticker} - could not fetch earnings data, skipping")
 
         return all_found
 
