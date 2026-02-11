@@ -13,5 +13,20 @@
     "buy_price": "$336.00",
     "date": "2026-02-10",
     "fiscal_period": "Q4 2025"
+  },
+  "SHOP": {
+    "buy_price": "$141.00",
+    "date": "2026-02-11",
+    "fiscal_period": "Q4 2025"
+  },
+  "ASML": {
+    "buy_price": "$850.00",
+    "date": "2026-02-11",
+    "fiscal_period": "Q4 2025"
+  },
+  "MU": {
+    "buy_price": "$120.00",
+    "date": "2026-02-11",
+    "fiscal_period": "Q4 2025"
   }
 }
