@@ -443,11 +443,56 @@ No explanations. Just the 4 lines."""
         return {}
 
 
+def verify_earnings_date_perplexity(ticker: str, date: str) -> bool:
+    """
+    Verify with Perplexity that a specific ticker actually reported earnings on a date.
+    Uses a focused single-ticker query to avoid false positives from bulk queries.
+    """
+    if not PERPLEXITY_API_KEY:
+        return False
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "sonar",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""Did {ticker} report its quarterly earnings results on {date}?
+Answer ONLY with YES or NO. Nothing else."""
+                }
+            ],
+            "max_tokens": 10
+        }
+
+        response = requests.post(
+            PERPLEXITY_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        answer = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip().upper()
+        answer = strip_citations(answer)
+        return "YES" in answer
+
+    except Exception as e:
+        print(f"  Error verifying earnings date for {ticker}: {e}")
+        return False
+
+
 def fetch_missing_earnings_perplexity(date: str, already_found: list) -> list:
     """
     Use Perplexity AI to find watched tickers that reported earnings on a date
     but were missing from FMP's calendar (free plan has incomplete data).
-    Returns list of dicts matching FMP calendar format for any found tickers.
+    Uses a two-step process: bulk query for candidates, then individual verification.
+    Returns list of dicts matching FMP calendar format for any confirmed tickers.
     """
     if not PERPLEXITY_API_KEY:
         return []
@@ -467,56 +512,21 @@ def fetch_missing_earnings_perplexity(date: str, already_found: list) -> list:
             "Content-Type": "application/json"
         }
 
-        # Single precise query asking Perplexity to check all tickers
-        payload = {
-            "model": "sonar",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": f"""I need to know which of these stocks reported their quarterly earnings on {date}:
-
-{ticker_list}
-
-Search for each ticker's earnings date. Only include a ticker if it actually reported earnings on exactly {date} (not a different date).
-Return ONLY a comma-separated list of ticker symbols. No explanations, no dates, no other text.
-If none reported on {date}, respond with: NONE"""
-                }
-            ],
-            "max_tokens": 200
-        }
-
-        response = requests.post(
-            PERPLEXITY_API_URL,
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        response.raise_for_status()
-
-        data = response.json()
-        content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-        content = strip_citations(content)
-        print(f"  Perplexity response: {content}")
-
-        if "NONE" in content.upper() and len(content) < 20:
-            return []
-
-        # Parse tickers from response - only accept tickers that are in our watchlist
+        # Verify each missing ticker individually
+        # Individual queries are most reliable (~$0.001 each, ~$0.05 total)
+        print(f"  Checking {len(missing_tickers)} tickers individually...")
         all_found = []
-        found_in_response = set()
-        watched_upper = set(t.upper() for t in missing_tickers)
-        for word in re.split(r'[,\s\n]+', content):
-            word = word.strip().upper().strip(".")
-            if word in watched_upper and word not in found_in_response:
-                found_in_response.add(word)
-                print(f"  Perplexity fallback found: {word} reported on {date}")
 
-                # Fetch actual earnings numbers for this ticker
-                print(f"  Fetching earnings data for {word} via Perplexity...")
-                earnings_data = fetch_earnings_data_perplexity(word, date)
+        for ticker in missing_tickers:
+            if verify_earnings_date_perplexity(ticker, date):
+                print(f"  ✅ {ticker} confirmed - reported on {date}")
+
+                # Fetch actual earnings numbers
+                print(f"  Fetching earnings data for {ticker} via Perplexity...")
+                earnings_data = fetch_earnings_data_perplexity(ticker, date)
 
                 all_found.append({
-                    "symbol": word,
+                    "symbol": ticker,
                     "date": date,
                     "epsActual": earnings_data.get("epsActual"),
                     "epsEstimated": earnings_data.get("epsEstimated"),
