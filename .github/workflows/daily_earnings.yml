@@ -86,7 +86,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add buy_prices.json posted_congress_trades.json posted_insider_trades.json
+          for f in buy_prices.json posted_congress_trades.json posted_insider_trades.json; do
+            [ -f "$f" ] && git add "$f"
+          done
           if ! git diff --cached --quiet; then
             git commit -m "Update bot data files [skip ci]"
             git push
