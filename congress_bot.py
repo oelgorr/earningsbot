@@ -188,12 +188,17 @@ def post_to_discord(embeds: list) -> bool:
 
 
 def get_trade_key(trade: dict) -> str:
-    """Generate a unique key for a trade to track duplicates."""
+    """Generate a unique key for a trade to track duplicates.
+    Uses last name + ticker + trade date to avoid mismatches from
+    Perplexity returning slightly different text each run (e.g.
+    '$500K-$1M' vs '$500,000-$1,000,000' or 'Nancy Pelosi' vs 'Rep. Nancy Pelosi').
+    """
     politician = trade.get("politician", "").lower().strip()
+    # Use last name only to avoid title/format variations
+    last_name = politician.split()[-1] if politician else "unknown"
     ticker = trade.get("ticker", "").upper().strip()
     trade_date = trade.get("trade_date", "").strip()
-    amount = trade.get("amount", "").strip()
-    return f"{politician}|{ticker}|{trade_date}|{amount}"
+    return f"{last_name}|{ticker}|{trade_date}"
 
 
 def load_posted_trades(filepath: str = "posted_congress_trades.json") -> set:
