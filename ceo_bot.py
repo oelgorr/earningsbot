@@ -184,12 +184,17 @@ def post_to_discord(embeds: list) -> bool:
 
 
 def get_trade_key(trade: dict) -> str:
-    """Generate a unique key for a trade to track duplicates."""
+    """Generate a unique key for a trade to track duplicates.
+    Uses last name + ticker + trade date to avoid mismatches from
+    Perplexity returning slightly different text each run (e.g.
+    '$100,970' vs '$100970' or 'Jacques Chappuis' vs 'Jacques M. Chappuis').
+    """
     executive = trade.get("executive", "").lower().strip()
+    # Use last name only to avoid middle initial / name format variations
+    last_name = executive.split()[-1] if executive else "unknown"
     ticker = trade.get("ticker", "").upper().strip()
     trade_date = trade.get("trade_date", "").strip()
-    value = trade.get("value", "").strip()
-    return f"{executive}|{ticker}|{trade_date}|{value}"
+    return f"{last_name}|{ticker}|{trade_date}"
 
 
 def load_posted_trades(filepath: str = "posted_insider_trades.json") -> set:
