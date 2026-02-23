@@ -1,9 +1,9 @@
 name: Daily Earnings Report
 
 on:
-  # Run every day at 12:00 UTC (7:00 AM Eastern, 4:00 AM Pacific)
+  # Run weekdays only at 12:00 UTC (7:00 AM Eastern, 4:00 AM Pacific)
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 12 * * 1-5'
 
   # Allow manual trigger from GitHub Actions tab
   workflow_dispatch:
