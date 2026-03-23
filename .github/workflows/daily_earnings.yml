@@ -34,19 +34,21 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run Weekly Preview (Mondays only)
+        continue-on-error: true
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
         run: |
           DAY=$(date -u +%a)
-          if [ "$DAY" = "Mon" ]; then
+          if [ "$DAY" = "Mon" ] || [ -n "${{ github.event.inputs.date }}" ]; then
             python earnings_bot.py --weekly
           else
             echo "Not Monday ($DAY) - skipping weekly preview"
           fi
 
       - name: Run EarningsBot
+        continue-on-error: true
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -59,30 +61,35 @@ jobs:
           fi
 
       - name: Update Google Sheet
+        continue-on-error: true
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
         run: python sheets_updater.py
 
       - name: Run PriceAlertBot
+        continue-on-error: true
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python price_alert_bot.py
 
       - name: Run CongressBot
+        continue-on-error: true
         env:
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           CONGRESS_DISCORD_WEBHOOK_URL: ${{ secrets.CONGRESS_DISCORD_WEBHOOK_URL }}
         run: python congress_bot.py --days 7
 
       - name: Run CEOBot
+        continue-on-error: true
         env:
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           CONGRESS_DISCORD_WEBHOOK_URL: ${{ secrets.CONGRESS_DISCORD_WEBHOOK_URL }}
         run: python ceo_bot.py --days 7
 
       - name: Commit data files
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

@@ -145,7 +145,7 @@ def main():
         if not args.dry_run:
             print(f"Sheet URL: https://docs.google.com/spreadsheets/d/{GOOGLE_SHEETS_ID}")
     else:
-        sys.exit(1)
+        print("⚠️ Sheet update failed - continuing workflow")
 
 
 if __name__ == "__main__":

@@ -45,19 +45,17 @@ def format_percent_change(current: float, previous: float) -> str:
     return f" {arrow} {change:+.1f}% YoY"
 
 
-def format_stock_movement(change_percent: Optional[float], is_premarket: bool = True) -> str:
+def format_stock_movement(change_percent: Optional[float], market_label: str = "pre-market") -> str:
     """Format stock price movement with emoji indicator."""
     if change_percent is None:
         return ""
 
-    market_type = "pre-market" if is_premarket else "after-hours"
-
     if change_percent > 0:
-        return f"📈 Stock is **up {change_percent:.1f}%** {market_type}"
+        return f"📈 Stock is **up {change_percent:.1f}%** {market_label}"
     elif change_percent < 0:
-        return f"📉 Stock is **down {abs(change_percent):.1f}%** {market_type}"
+        return f"📉 Stock is **down {abs(change_percent):.1f}%** {market_label}"
     else:
-        return f"➡️ Stock is **flat** {market_type}"
+        return f"➡️ Stock is **flat** {market_label}"
 
 
 def create_earnings_embed(
@@ -74,6 +72,7 @@ def create_earnings_embed(
     takeaways: Optional[list] = None,
     is_ath: bool = False,
     stock_change_percent: Optional[float] = None,
+    stock_market_label: str = "pre-market",
     buy_price: Optional[str] = None,
 ) -> dict:
     """
@@ -164,7 +163,7 @@ def create_earnings_embed(
     # Build description with company name, stock movement, and optional ATH note
     description = f"**{company_name}**"
     if stock_change_percent is not None:
-        stock_movement = format_stock_movement(stock_change_percent)
+        stock_movement = format_stock_movement(stock_change_percent, stock_market_label)
         description += f"\n{stock_movement}"
     if is_ath:
         description += "\n🚀 *Stock reached all-time high!*"

@@ -98,7 +98,8 @@ def fetch_company_profile(ticker: str) -> Optional[dict]:
 def fetch_stock_quote(ticker: str) -> Optional[dict]:
     """
     Fetch real-time stock quote including pre/post market data.
-    Returns dict with price, change, changesPercentage, etc.
+    Returns dict with price, change, changesPercentage, and
+    pre/after-market fields if available.
     """
     url = f"{FMP_STABLE_URL}/quote"
     params = {"symbol": ticker, "apikey": FMP_API_KEY}
@@ -115,6 +116,33 @@ def fetch_stock_quote(ticker: str) -> Optional[dict]:
     except requests.RequestException as e:
         print(f"Error fetching quote for {ticker}: {e}")
         return None
+
+
+def get_stock_change_percent(quote: dict) -> tuple[Optional[float], str]:
+    """
+    Extract the most relevant price change from a quote.
+    At 7AM ET (pre-market), prefers pre-market % change over previous close.
+    Returns (change_percent, market_label) e.g. (4.2, "pre-market").
+    """
+    if not quote:
+        return None, "pre-market"
+
+    # FMP returns preMarketPrice if pre-market trading is active
+    pre_market_price = quote.get("preMarketPrice")
+    previous_close = quote.get("previousClose") or quote.get("price")
+    current_price = quote.get("price")
+
+    # Use pre-market price if available and different from regular price
+    if pre_market_price and previous_close and pre_market_price != current_price:
+        change = ((pre_market_price - previous_close) / abs(previous_close)) * 100
+        return round(change, 2), "pre-market"
+
+    # Fall back to regular changesPercentage (vs previous close)
+    change_pct = quote.get("changesPercentage")
+    if change_pct is not None:
+        return round(float(change_pct), 2), "pre-market"
+
+    return None, "pre-market"
 
 
 def fetch_earnings_history(ticker: str, limit: int = 4) -> list:
@@ -543,7 +571,8 @@ def fetch_missing_earnings_perplexity(date: str, already_found: list) -> list:
     """
     Use Perplexity AI to find watched tickers that reported earnings on a date
     but were missing from FMP's calendar (free plan has incomplete data).
-    Uses a two-step process: bulk query for candidates, then individual verification.
+    Uses a single bulk query to identify candidates, then fetches data only
+    for confirmed tickers — keeping API calls to a minimum.
     Returns list of dicts matching FMP calendar format for any confirmed tickers.
     """
     if not PERPLEXITY_API_KEY:
@@ -564,31 +593,73 @@ def fetch_missing_earnings_perplexity(date: str, already_found: list) -> list:
             "Content-Type": "application/json"
         }
 
-        # Verify each missing ticker individually
-        # Individual queries are most reliable (~$0.001 each, ~$0.05 total)
-        print(f"  Checking {len(missing_tickers)} tickers individually...")
+        # Single bulk query to identify which tickers reported on the date
+        print(f"  Bulk checking {len(missing_tickers)} tickers in one query...")
+        payload = {
+            "model": "sonar",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"""Which of these stocks reported quarterly earnings on {date}?
+
+{ticker_list}
+
+List ONLY the ticker symbols that reported earnings on exactly {date}.
+If none reported on that date, respond with: NONE
+Return ONLY the ticker symbols, one per line, nothing else."""
+                }
+            ],
+            "max_tokens": 200
+        }
+
+        response = requests.post(
+            PERPLEXITY_API_URL,
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        content = strip_citations(content)
+        print(f"  Perplexity bulk response: {content}")
+
+        if "NONE" in content.upper() and len(content) < 20:
+            return []
+
+        # Extract ticker symbols from the response
+        watched_upper = set(t.upper() for t in missing_tickers)
+        candidates = []
+        for line in content.split("\n"):
+            token = line.strip().upper().lstrip("•-*0123456789.) ")
+            if token in watched_upper and token not in found_set:
+                candidates.append(token)
+                found_set.add(token)
+
+        if not candidates:
+            return []
+
+        print(f"  {len(candidates)} candidate(s) identified: {', '.join(candidates)}")
+
+        # Fetch earnings data for confirmed candidates only
         all_found = []
+        for ticker in candidates:
+            print(f"  Fetching earnings data for {ticker} via Perplexity...")
+            earnings_data = fetch_earnings_data_perplexity(ticker, date)
 
-        for ticker in missing_tickers:
-            if verify_earnings_date_perplexity(ticker, date):
-                # Fetch actual earnings numbers to confirm and populate data
-                print(f"  Fetching earnings data for {ticker} via Perplexity...")
-                earnings_data = fetch_earnings_data_perplexity(ticker, date)
-
-                # Only include if we got at least EPS actual data
-                # This filters out false positives where Perplexity can't find real data
-                if earnings_data.get("epsActual") is not None:
-                    print(f"  ✅ {ticker} confirmed with data - reported on {date}")
-                    all_found.append({
-                        "symbol": ticker,
-                        "date": date,
-                        "epsActual": earnings_data.get("epsActual"),
-                        "epsEstimated": earnings_data.get("epsEstimated"),
-                        "revenueActual": earnings_data.get("revenueActual"),
-                        "revenueEstimated": earnings_data.get("revenueEstimated"),
-                    })
-                else:
-                    print(f"  ⚠️ {ticker} - could not fetch earnings data, skipping")
+            if earnings_data.get("epsActual") is not None:
+                print(f"  ✅ {ticker} confirmed with data")
+                all_found.append({
+                    "symbol": ticker,
+                    "date": date,
+                    "epsActual": earnings_data.get("epsActual"),
+                    "epsEstimated": earnings_data.get("epsEstimated"),
+                    "revenueActual": earnings_data.get("revenueActual"),
+                    "revenueEstimated": earnings_data.get("revenueEstimated"),
+                })
+            else:
+                print(f"  ⚠️ {ticker} - could not fetch earnings data, skipping")
 
         return all_found
 
@@ -920,9 +991,8 @@ def process_earnings(date: str) -> tuple[list, int, int, dict]:
         # Get stock quote for price movement
         print(f"  Fetching stock quote for {ticker}...")
         quote = fetch_stock_quote(ticker)
-        stock_change_percent = None
-        if quote:
-            stock_change_percent = quote.get("changesPercentage")
+        stock_change_percent, market_label = get_stock_change_percent(quote)
+        print(f"  {ticker} price movement: {stock_change_percent}% ({market_label})")
 
         # Get guidance, takeaways, ATH status, and buy price using Perplexity AI
         guidance = None
@@ -962,6 +1032,7 @@ def process_earnings(date: str) -> tuple[list, int, int, dict]:
             takeaways=takeaways,
             is_ath=is_ath,
             stock_change_percent=stock_change_percent,
+            stock_market_label=market_label,
             buy_price=buy_price
         )
         embeds.append(embed)
