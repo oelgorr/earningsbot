@@ -5,7 +5,7 @@
     "fiscal_period": "Q4 2025"
   },
   "DDOG": {
-    "buy_price": "$180.00",
+    "buy_price": "$170.00",
     "date": "2026-02-10",
     "fiscal_period": "Q4 2025"
   },
@@ -20,13 +20,108 @@
     "fiscal_period": "Q4 2025"
   },
   "ASML": {
-    "buy_price": "$850.00",
+    "buy_price": "$1,100.00",
     "date": "2026-02-11",
     "fiscal_period": "Q4 2025"
   },
   "MU": {
-    "buy_price": "$120.00",
+    "buy_price": "$545.00",
     "date": "2026-02-11",
+    "fiscal_period": "Q4 2025"
+  },
+  "DUOL": {
+    "buy_price": "$140.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "NDAQ": {
+    "buy_price": "$70.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "LULU": {
+    "buy_price": "$120.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "FOUR": {
+    "buy_price": "$65.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "NVO": {
+    "buy_price": "$29.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "ABNB": {
+    "buy_price": "$131.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "S": {
+    "buy_price": "$17.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "TMDX": {
+    "buy_price": "$130.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "TSLA": {
+    "buy_price": "$410.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "HESAF": {
+    "buy_price": "€2,100.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "LMND": {
+    "buy_price": "$58.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "NET": {
+    "buy_price": "$235.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "MSFT": {
+    "buy_price": "$365.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "ENPH": {
+    "buy_price": "$50.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "MEDP": {
+    "buy_price": "$395.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "TTD": {
+    "buy_price": "$30.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "MNDY": {
+    "buy_price": "$90.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "HUBS": {
+    "buy_price": "$350.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "TSM": {
+    "buy_price": "$450.00",
+    "date": "2026-03-23",
     "fiscal_period": "Q4 2025"
   }
 }
