@@ -145,19 +145,18 @@ def get_stock_change_percent(quote: dict) -> tuple[Optional[float], str]:
     return None, "pre-market"
 
 
-def fetch_earnings_history(ticker: str, limit: int = 4) -> list:
-    """Fetch historical earnings for YoY comparison. Requires higher FMP plan."""
-    # Skip this call entirely - requires paid plan
-    # Uncomment below if you upgrade your FMP subscription
-    return []
-    # url = f"{FMP_STABLE_URL}/earnings"
-    # params = {"symbol": ticker, "limit": limit, "apikey": FMP_API_KEY}
-    # try:
-    #     response = requests.get(url, params=params, timeout=30)
-    #     response.raise_for_status()
-    #     return response.json()
-    # except requests.RequestException:
-    #     return []
+def fetch_earnings_history(ticker: str, limit: int = 8) -> list:
+    """Fetch historical earnings for YoY comparison."""
+    url = f"{FMP_STABLE_URL}/earnings"
+    params = {"symbol": ticker, "limit": limit, "apikey": FMP_API_KEY}
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        return data if isinstance(data, list) else []
+    except requests.RequestException as e:
+        print(f"  Error fetching earnings history for {ticker}: {e}")
+        return []
 
 
 def fetch_earnings_guidance(ticker: str, year: int, quarter: int) -> Optional[str]:
@@ -366,20 +365,39 @@ Answer ONLY with YES or NO. Nothing else."""
         return False
 
 
-def get_previous_year_earnings(ticker: str, current_quarter: str) -> Optional[dict]:
-    """Get the same quarter from previous year for YoY comparison."""
+def get_previous_year_earnings(ticker: str, announcement_date: str) -> Optional[dict]:
+    """
+    Get the same fiscal quarter from the previous year for YoY comparison.
+    Finds the history entry whose date is closest to 12 months before announcement_date.
+    """
     history = fetch_earnings_history(ticker, limit=8)
+    if not history:
+        return None
 
-    for earning in history:
-        # Match fiscal quarter from previous year
-        if earning.get("fiscalDateEnding"):
-            earning_date = earning.get("fiscalDateEnding", "")
-            # Simple matching - could be improved
-            if earning_date and len(history) >= 5:
-                # The 5th entry should be roughly same quarter last year
-                return history[4] if len(history) > 4 else None
+    try:
+        current_dt = datetime.strptime(announcement_date, "%Y-%m-%d")
+        target_dt = current_dt.replace(year=current_dt.year - 1)
+    except (ValueError, TypeError):
+        return None
 
-    return None
+    best = None
+    best_diff = float("inf")
+
+    for entry in history:
+        date_str = entry.get("date") or entry.get("fiscalDateEnding", "")
+        if not date_str:
+            continue
+        try:
+            entry_dt = datetime.strptime(date_str[:10], "%Y-%m-%d")
+            diff = abs((entry_dt - target_dt).days)
+            if diff < best_diff:
+                best_diff = diff
+                best = entry
+        except ValueError:
+            continue
+
+    # Only use if within 45 days of the target (same quarter, last year)
+    return best if best and best_diff <= 45 else None
 
 
 def filter_watched_earnings(earnings_calendar: list) -> list:
@@ -923,14 +941,8 @@ def process_earnings(date: str) -> tuple[list, int, int, dict]:
     watched_earnings = filter_watched_earnings(calendar)
     print(f"Found {len(watched_earnings)} watched companies from FMP")
 
-    # Use Perplexity fallback to catch tickers FMP missed (free plan has incomplete data)
-    print("Checking Perplexity for any missed earnings...")
-    missed_earnings = fetch_missing_earnings_perplexity(date, watched_earnings)
-    if missed_earnings:
-        print(f"Found {len(missed_earnings)} additional companies via Perplexity fallback")
-        watched_earnings.extend(missed_earnings)
-    else:
-        print("No additional earnings found via Perplexity")
+    # FMP Starter plan has a complete earnings calendar — Perplexity fallback no longer needed.
+    # Keeping the function available in case specific tickers are still missing.
 
     if not watched_earnings:
         return [], 0, 0, {}  # Return empty - don't post if no watched companies reported
@@ -954,17 +966,30 @@ def process_earnings(date: str) -> tuple[list, int, int, dict]:
         revenue_actual = earning.get("revenueActual")
         revenue_estimate = earning.get("revenueEstimated")
 
-        # Get previous year data for YoY comparison (optional - requires higher plan)
-        try:
-            prev_year = get_previous_year_earnings(ticker, earning.get("fiscalDateEnding", ""))
-            revenue_previous = prev_year.get("revenue") if prev_year else None
-            eps_previous = prev_year.get("eps") if prev_year else None
-        except Exception:
-            revenue_previous = None
-            eps_previous = None
-
         # Determine fiscal period from announcement date
         announcement_date = earning.get("date", "")
+
+        # Get previous year data for YoY comparison
+        try:
+            prev_year = get_previous_year_earnings(ticker, announcement_date)
+            if prev_year:
+                # FMP stable API uses revenueActual / epsActual in history too
+                revenue_previous = (
+                    prev_year.get("revenueActual") or
+                    prev_year.get("revenue")
+                )
+                eps_previous = (
+                    prev_year.get("epsActual") or
+                    prev_year.get("eps")
+                )
+                print(f"  YoY data for {ticker}: revenue={revenue_previous}, eps={eps_previous}")
+            else:
+                revenue_previous = None
+                eps_previous = None
+        except Exception as e:
+            print(f"  YoY lookup failed for {ticker}: {e}")
+            revenue_previous = None
+            eps_previous = None
         quarter, year = None, None
         if announcement_date:
             try:
