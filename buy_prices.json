@@ -123,5 +123,60 @@
     "buy_price": "$450.00",
     "date": "2026-03-23",
     "fiscal_period": "Q4 2025"
+  },
+  "MELI": {
+    "buy_price": "$2,150.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "NU": {
+    "buy_price": "$16.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "SE": {
+    "buy_price": "$179.00",
+    "date": "2026-03-23",
+    "fiscal_period": "Q4 2025"
+  },
+  "CRWD": {
+    "buy_price": "$395.00",
+    "date": "2026-03-25",
+    "fiscal_period": "Q4 2026"
+  },
+  "OTCM": {
+    "buy_price": "$55.00",
+    "date": "2026-03-25",
+    "fiscal_period": "Q4 2025"
+  },
+  "DLO": {
+    "buy_price": "$13.00",
+    "date": "2026-03-25",
+    "fiscal_period": "Q4 2025"
+  },
+  "CPNG": {
+    "buy_price": "$21.00",
+    "date": "2026-03-25",
+    "fiscal_period": "Q4 2025"
+  },
+  "GRAB": {
+    "buy_price": "$5.00",
+    "date": "2026-03-25",
+    "fiscal_period": "Q4 2025"
+  },
+  "META": {
+    "buy_price": "$705.00",
+    "date": "2026-03-25",
+    "fiscal_period": "Q4 2025"
+  },
+  "GOOG": {
+    "buy_price": "$360.00",
+    "date": "2026-03-25",
+    "fiscal_period": "Q4 2025"
+  },
+  "DOCN": {
+    "buy_price": "$65.00",
+    "date": "2026-03-25",
+    "fiscal_period": "Q4 2025"
   }
 }
