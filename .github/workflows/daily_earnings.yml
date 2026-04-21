@@ -36,7 +36,7 @@ jobs:
       - name: Run Weekly Preview (Mondays only)
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.EARNINGS_DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
         run: |
           DAY=$(date -u +%a)
@@ -49,7 +49,7 @@ jobs:
       - name: Run EarningsBot
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.EARNINGS_DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
         run: |
           if [ -n "${{ github.event.inputs.date }}" ]; then
@@ -67,7 +67,7 @@ jobs:
       - name: Run PriceAlertBot
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.EARNINGS_DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python price_alert_bot.py
 
       - name: Run CongressBot
