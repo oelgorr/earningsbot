@@ -20,14 +20,14 @@
     "fiscal_period": "Q4 2025"
   },
   "ASML": {
-    "buy_price": "$1,100.00",
-    "date": "2026-02-11",
-    "fiscal_period": "Q4 2025"
+    "buy_price": "$1,510.00",
+    "date": "2026-04-15",
+    "fiscal_period": "Q1 2026"
   },
   "MU": {
     "buy_price": "$545.00",
-    "date": "2026-02-11",
-    "fiscal_period": "Q4 2025"
+    "date": "2026-04-01",
+    "fiscal_period": "Q2 FY2026"
   },
   "DUOL": {
     "buy_price": "$140.00",
@@ -70,14 +70,14 @@
     "fiscal_period": "Q4 2025"
   },
   "TSLA": {
-    "buy_price": "$410.00",
-    "date": "2026-03-23",
-    "fiscal_period": "Q4 2025"
+    "buy_price": "$370.00",
+    "date": "2026-04-23",
+    "fiscal_period": "Q1 2026"
   },
   "HESAF": {
-    "buy_price": "€2,100.00",
-    "date": "2026-03-23",
-    "fiscal_period": "Q4 2025"
+    "buy_price": "€1,850.00",
+    "date": "2026-04-21",
+    "fiscal_period": "Q1 2026"
   },
   "LMND": {
     "buy_price": "$58.00",
@@ -178,5 +178,50 @@
     "buy_price": "$65.00",
     "date": "2026-03-25",
     "fiscal_period": "Q4 2025"
+  },
+  "ADYEY": {
+    "buy_price": "$15.00",
+    "date": "2026-03-26",
+    "fiscal_period": "Q4 2025"
+  },
+  "BYDDY": {
+    "buy_price": "$16.00",
+    "date": "2026-03-30",
+    "fiscal_period": "FY 2025"
+  },
+  "BOC": {
+    "buy_price": "$14.00",
+    "date": "2026-04-01",
+    "fiscal_period": "FY 2025"
+  },
+  "FCFS": {
+    "buy_price": "$222.00",
+    "date": "2026-04-24",
+    "fiscal_period": "Q1 2026"
+  },
+  "KNSL": {
+    "buy_price": "$375.00",
+    "date": "2026-04-24",
+    "fiscal_period": "Q1 2026"
+  },
+  "VRT": {
+    "buy_price": "$325.00",
+    "date": "2026-04-29",
+    "fiscal_period": "Q1 2026"
+  },
+  "HIMS": {
+    "buy_price": "$28.00",
+    "date": "2026-05-28",
+    "fiscal_period": "Q1 2026"
+  },
+  "GLBE": {
+    "buy_price": "$28.00",
+    "date": "2026-05-28",
+    "fiscal_period": "Q1 2026"
+  },
+  "ROKU": {
+    "buy_price": "$115.00",
+    "date": "2026-05-28",
+    "fiscal_period": "Q1 2026"
   }
 }

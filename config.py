@@ -15,9 +15,11 @@ WATCHED_TICKERS = [
     # Global & Emerging
     "GLBE", "BOC", "HESAF", "ESLOY", "BYDDY",
     # Tech & Hardware
-    "KNSL", "TSLA", "ASML", "MU", "ENPH",
+    "KNSL", "TSLA", "ASML", "MU", "ENPH", "VRT",
     # Healthcare & Specialty
     "MEDP", "TMDX", "RACE",
+    # Financial Services
+    "FCFS",
 ]
 
 # Discord Webhook URL (get from Server Settings → Integrations → Webhooks)
